@@ -18,6 +18,7 @@
   },
   "exclude_industries": ["Staffing and Recruiting", "Human Resources Services"],
   "min_staff": 50,
+  "min_themes": 2,
   "recent_days": 14,
   "output_dir": "./output"
 }

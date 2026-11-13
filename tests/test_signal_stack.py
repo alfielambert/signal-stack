@@ -143,3 +143,30 @@ def test_enrich_resumes_and_caps_ads_per_company(cfg, monkeypatch):
     enriched = ss.run_enrich(cfg, Client(), jobs)
     assert calls == []  # resumed from jobs_enriched.jsonl
     assert len(enriched) == 1
+
+
+def test_single_theme_companies_are_dropped(cfg, jobs):
+    # Mirrors La Fosse in the first real run: "release governance" and nothing else
+    jobs[0]["description"] = "Stronger release governance and automated deployments."
+    ranked, dropped = ss.score_companies(cfg, jobs[:1], TODAY)
+    assert ranked == []
+    assert dropped == {"fewer than 2 themes": 1}
+
+
+def test_search_pages_through_the_linkedin_url(cfg):
+    page = load("search_jobs.json")
+    urls = []
+
+    class Client:
+        def get(self, endpoint, params):
+            urls.append(params["url"])
+            # Return the same jobs every time, like the API did when paging was wrong
+            return {**page, "paging": {"count": 3}}
+
+    cfg["searches"] = ["AI platform engineer"]
+    cfg["pages_per_search"] = 3
+    jobs = ss.run_search(cfg, Client())
+    assert len(jobs) == 3
+    assert "&start=" not in urls[0]
+    assert urls[1].endswith("&start=3")
+    assert len(urls) == 2  # page 2 had nothing new, so paging stopped

@@ -26,7 +26,7 @@ Every rank comes with its evidence and a link to the ad, so you can check it in 
 2. **Enrich.** Pulls the full ad and the company's industry and headcount for each job.
 3. **Filter.** Drops recruitment agencies, companies under your size floor and ads with no description.
 4. **Match.** Checks each ad against your signal themes. Phrases match as whole words, so "RAG" won't fire on "storage".
-5. **Rank.** Scores each company: 2 points per distinct theme, 1 per matching ad, 1 if an ad is under two weeks old. Several themes in one ad beat the same buzzword repeated across many.
+5. **Rank.** Drops companies that hit fewer than `min_themes` themes, then scores the rest: 2 points per distinct theme, 1 per matching ad, 1 if an ad is under two weeks old. Several themes in one ad beat the same buzzword repeated across many.
 
 Scoring is plain rules, not a model. You can explain every rank, and the output doesn't change between runs.
 
@@ -72,6 +72,8 @@ One API call per search page and one per ad enriched. `max_ads_per_company` (def
 - **Recruiters were half the results.** A search for "AI platform engineer" in the UK came back roughly half agencies. They're filtered on LinkedIn's industry field, not on name lists.
 - **Headcounts lie.** Tradeweb comes back with `staffCount: 1` next to a range of 1,001 to 5,000. The tool never reports less than the bottom of the range.
 - **Keyword search is loose.** An earlier version trusted LinkedIn's job search and matched "Luxury Showroom Sales Consultant" for "AI agents". Every ad's full description is now checked against your phrases before it counts.
+- **Page 2 was page 1 again.** In the first real run every search's second page returned the same 25 jobs, wasting a call each. Paging has to go in the LinkedIn URL. The search now also stops as soon as a page brings nothing new.
+- **One buzzword isn't a signal.** A recruiter's contract ad ranked because it mentioned "release governance". Companies now need at least two themes (`min_themes`).
 - **Running out of credits used to leave holes.** A 401, 402 or 403 now stops the run straight away, with progress saved, instead of carrying on with gaps in the data.
 
 ## Tests

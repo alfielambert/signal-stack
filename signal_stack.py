@@ -133,7 +133,9 @@ def run_search(cfg: dict, client: LixClient) -> list[dict]:
         url = build_search_url(query, cfg.get("location", ""), cfg.get("days_back", 30))
         sequence_id, start = None, 0
         for page in range(cfg.get("pages_per_search", 2)):
-            params = {"url": url, "start": start}
+            # Paging goes in the LinkedIn URL. A separate start param is ignored
+            # and silently returns page 1 again.
+            params = {"url": url + (f"&start={start}" if start else "")}
             if sequence_id:
                 params["sequence_id"] = sequence_id
             data = client.get("/v1/li/linkedin/search/jobs", params)
@@ -147,7 +149,7 @@ def run_search(cfg: dict, client: LixClient) -> list[dict]:
             log.info(f'"{query}" page {page + 1}: {len(page_jobs)} jobs, {len(new)} new')
             page_size = (data.get("paging") or {}).get("count") or 25
             start += page_size
-            if len(page_jobs) < page_size:
+            if len(page_jobs) < page_size or not new:
                 break
 
     path = os.path.join(cfg["output_dir"], "jobs_raw.json")
@@ -311,8 +313,14 @@ def score_companies(cfg: dict, jobs: list[dict], today: datetime) -> tuple[list[
         for theme, hit in hits.items():
             c["themes"].setdefault(theme, {**hit, "ad": job["title"]})
 
+    # One theme on its own is usually a buzzword ("release governance" from a
+    # recruiter ad), so a company needs several to count.
+    min_themes = cfg.get("min_themes", 2)
     ranked = []
     for c in companies.values():
+        if len(c["themes"]) < min_themes:
+            dropped[f"fewer than {min_themes} themes"] += 1
+            continue
         ages = [a["days_old"] for a in c["ads"] if a["days_old"] is not None]
         newest = min(ages) if ages else None
         # Independent themes count most: one ad mentioning memory, governance and
@@ -436,11 +444,13 @@ def main():
             with open(os.path.join(out, "jobs_raw.json")) as f:
                 jobs = json.load(f)
         if args.step in (None, "enrich"):
-            enriched = run_enrich(cfg, client, jobs)
-            if args.step is None:
-                run_score(cfg, enriched)
+            run_score(cfg, run_enrich(cfg, client, jobs))
     except OutOfCredits as e:
-        log.error(f"Stopped: {e}. Progress is saved; rerun to resume.")
+        log.error(f"Stopped: {e}. Progress is saved; run --step enrich to resume.")
+        enriched_path = os.path.join(out, "jobs_enriched.jsonl")
+        if os.path.exists(enriched_path):
+            log.info("Scoring what was enriched before the stop")
+            run_score(cfg, load_jsonl(enriched_path))
         sys.exit(1)
     finally:
         log.info(f"API calls this run: {client.calls}")
