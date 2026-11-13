@@ -1,0 +1,45 @@
+{
+  "jobPostings": [
+    {
+      "datePosted": "2026-11-12T17:25:06Z",
+      "id": "4436231421",
+      "location": "London, England, United Kingdom",
+      "organisation": {
+        "link": "https://www.linkedin.com/company/9fin/life",
+        "name": "9fin"
+      },
+      "title": "Senior AI Platform Engineer",
+      "workplaceType": "Hybrid"
+    },
+    {
+      "datePosted": "2026-11-12T16:07:06Z",
+      "id": "4490367177",
+      "location": "London, England, United Kingdom",
+      "organisation": {
+        "link": "https://www.linkedin.com/company/tradeweb/life",
+        "name": "Tradeweb"
+      },
+      "title": "AI Platform Engineer",
+      "workplaceType": "Hybrid"
+    },
+    {
+      "datePosted": "2026-11-12T15:18:26Z",
+      "id": "4490346801",
+      "location": "Fareham, England, United Kingdom",
+      "organisation": {
+        "link": "https://www.linkedin.com/company/lorien/life",
+        "name": "Lorien"
+      },
+      "title": "AI Platform Engineer",
+      "workplaceType": "Hybrid"
+    }
+  ],
+  "meta": {
+    "sequenceId": "79ac10a3-a9f5-4034-a480-f26a0e6a8072"
+  },
+  "paging": {
+    "count": 25,
+    "start": 0,
+    "total": 499
+  }
+}

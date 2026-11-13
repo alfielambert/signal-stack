@@ -1,0 +1,28 @@
+{
+  "jobPosting": {
+    "jobPostingId": "4436231421",
+    "title": "Senior AI Platform Engineer",
+    "formattedLocation": "London, England, United Kingdom",
+    "listedAt": "1794504306000",
+    "description": {
+      "text": "We're looking for a Senior AI Platform Engineer to build the foundation beneath it. This is greenfield: a V1 exists, but the big decisions are still ahead. You'll design the core platform behind Generative AI, Agentic AI and ML at 9fin: one home for every agent, delivering \"AI as a service\" to a dozen or more teams.\n\nA real roadmap. Memory, artifacts and event-driven agents come first. Within six months, you'll help ship agents that run autonomously in the background.\n\nSet standards for testing, governance, Responsible AI and operations, and keep evolving the platform as the ecosystem moves\n\nBonus Points\n\nVector databases and semantic retrievalKnowledge graphs or document understanding systems"
+    },
+    "companyDetails": {
+      "com.linkedin.voyager.deco.jobs.web.shared.WebJobPostingCompany": {
+        "companyResolutionResult": {
+          "name": "9fin",
+          "url": "https://www.linkedin.com/company/9fin",
+          "entityUrn": "urn:li:fs_normalized_company:15241220",
+          "industries": [
+            "Financial Services"
+          ],
+          "staffCount": 649,
+          "staffCountRange": {
+            "start": 501,
+            "end": 1000
+          }
+        }
+      }
+    }
+  }
+}

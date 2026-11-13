@@ -1,0 +1,23 @@
+{
+  "api_key": "YOUR_LIX_API_KEY_HERE",
+  "searches": [
+    "AI platform engineer",
+    "agentic AI engineer",
+    "LLM platform engineer",
+    "head of AI platform"
+  ],
+  "location": "United Kingdom",
+  "days_back": 30,
+  "pages_per_search": 2,
+  "max_ads_per_company": 3,
+  "max_requests": 300,
+  "signals": {
+    "agent_platform": ["one home for every agent", "agent platform", "agent orchestration", "agent runtime", "multi-agent", "agentic"],
+    "memory_and_context": ["agent memory", "memory", "context engineering", "knowledge graph", "knowledge graphs", "knowledge base", "RAG", "retrieval-augmented generation"],
+    "governance": ["AI governance", "governance", "auditable", "audit logging", "responsible AI", "data residency", "on-premise", "self-hosted"]
+  },
+  "exclude_industries": ["Staffing and Recruiting", "Human Resources Services"],
+  "min_staff": 50,
+  "recent_days": 14,
+  "output_dir": "./output"
+}

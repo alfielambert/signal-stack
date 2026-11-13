@@ -1,0 +1,28 @@
+{
+  "jobPosting": {
+    "jobPostingId": "4490346801",
+    "title": "AI Platform Engineer",
+    "formattedLocation": "Fareham, England, United Kingdom",
+    "listedAt": "1794496706000",
+    "description": {
+      "text": "We're working with our client, a growing technology business, to recruit an AI Engineer who will run, secure and build AI across the organisation.\nHelp define AI governance, risk assessments and technical standards. Develop retrieval-augmented generation (RAG), semantic search and knowledge solutions connected safely to company documents."
+    },
+    "companyDetails": {
+      "com.linkedin.voyager.deco.jobs.web.shared.WebJobPostingCompany": {
+        "companyResolutionResult": {
+          "name": "Lorien",
+          "url": "https://www.linkedin.com/company/lorien",
+          "entityUrn": "urn:li:fs_normalized_company:164766",
+          "industries": [
+            "Staffing and Recruiting"
+          ],
+          "staffCount": 633,
+          "staffCountRange": {
+            "start": 201,
+            "end": 500
+          }
+        }
+      }
+    }
+  }
+}

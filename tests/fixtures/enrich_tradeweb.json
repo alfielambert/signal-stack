@@ -1,0 +1,28 @@
+{
+  "jobPosting": {
+    "jobPostingId": "4490367177",
+    "title": "AI Platform Engineer",
+    "formattedLocation": "London, England, United Kingdom",
+    "listedAt": "1794499626000",
+    "description": {
+      "text": "You will build and run the shared AI platform layer on AWS Bedrock that engineering and business teams use to deliver AI safely and at scale: model gateways, Model Context Protocol (MCP) servers, evaluation and observability tooling, cost controls and secure configuration templates for AI developer tooling.\n\nEmbed security and agent identity: Implement security, privacy and responsible AI controls, including agent identities, delegated authorization and auditable access, in line with Security Architecture standards.  Connect agents to tools and data: Build secure MCP integrations and RAG pipelines connecting agents to internal data and APIs."
+    },
+    "companyDetails": {
+      "com.linkedin.voyager.deco.jobs.web.shared.WebJobPostingCompany": {
+        "companyResolutionResult": {
+          "name": "Tradeweb",
+          "url": "https://www.linkedin.com/company/tradeweb",
+          "entityUrn": "urn:li:fs_normalized_company:12196",
+          "industries": [
+            "Financial Services"
+          ],
+          "staffCount": 1,
+          "staffCountRange": {
+            "start": 1001,
+            "end": 5000
+          }
+        }
+      }
+    }
+  }
+}
