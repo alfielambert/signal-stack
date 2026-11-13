@@ -195,3 +195,12 @@ def test_matches_survive_joined_bullet_points():
     hits = ss.match_signals("Vector databases and semantic retrievalKnowledge graphsBuilding", compiled)
     assert hits["memory_and_context"]["phrase"] == "knowledge graphs"
     assert ss.match_signals("storage and leverage, RAGs aside", compiled) == {}
+
+
+def test_demo_runs_without_api_key(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("LIX_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    ss.run_demo()
+    out = capsys.readouterr().out
+    assert "Top 5 of" in out
+    assert (tmp_path / "output" / "demo" / "report.md").exists()

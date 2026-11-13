@@ -183,7 +183,7 @@ def parse_enriched_job(data: dict) -> dict:
         "company_url": company.get("url") or "",
         "company_id": (company.get("entityUrn") or "").split(":")[-1],
         "industries": company.get("industries") or [],
-        # staffCount is sometimes junk (Tradeweb comes back as 1 with a range of
+        # staffCount is sometimes junk (one trading platform comes back as 1 with a range of
         # 1001-5000), so never report fewer than the bottom of the range.
         "staff_count": max(
             company.get("staffCount") or 0,
@@ -329,7 +329,8 @@ def score_companies(cfg: dict, jobs: list[dict], today: datetime) -> tuple[list[
         age = days_since(job["listed_at"], today)
         c["ads"].append({
             "title": job["title"],
-            "url": f"https://www.linkedin.com/jobs/view/{job['job_id']}/",
+            # Demo ads carry no real LinkedIn ID, so they get no link
+            "url": f"https://www.linkedin.com/jobs/view/{job['job_id']}/" if job["job_id"].isdigit() else "",
             "listed_at": job["listed_at"],
             "days_old": age,
         })
@@ -418,7 +419,7 @@ def render_report(ranked: list[dict], dropped: dict, total_jobs: int, limit: int
             lines.append(f"- **{theme}** (\"{hit['phrase']}\" in {hit['ad']}): {hit['evidence']}")
         lines.append("")
         for ad in c["ads"]:
-            lines.append(f"- [{ad['title']}]({ad['url']})")
+            lines.append(f"- [{ad['title']}]({ad['url']})" if ad["url"] else f"- {ad['title']}")
         lines.append("")
     return "\n".join(lines)
 
@@ -446,12 +447,42 @@ def load_jsonl(path: str) -> list[dict]:
         return [json.loads(line) for line in f]
 
 
+DEMO_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo", "jobs_enriched.jsonl")
+DEMO_DATE = datetime(2026, 11, 13, tzinfo=timezone.utc)  # the day the demo ads were pulled
+
+
+def print_top(ranked: list[dict], n: int = 5):
+    print(f"\nTop {min(n, len(ranked))} of {len(ranked)} companies:\n")
+    for i, c in enumerate(ranked[:n], 1):
+        print(f"{i}. {c['company']}  (score {c['score']})")
+        for theme, hit in c["themes"].items():
+            print(f'   {theme}: "{hit["phrase"]}"')
+        print()
+
+
+def run_demo():
+    """Score a real run's ads (anonymised and trimmed) with no API key."""
+    cfg = load_config(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.example.json"))
+    cfg["output_dir"] = os.path.join("output", "demo")
+    os.makedirs(cfg["output_dir"], exist_ok=True)
+    setup_logging(cfg["output_dir"])
+    ranked = run_score(cfg, load_jsonl(DEMO_DATA), today=DEMO_DATE)
+    print_top(ranked)
+    print(f"Full report with quotes: {cfg['output_dir']}/report.md")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Find companies whose job ads describe your problem")
     parser.add_argument("--config", default="config.json")
     parser.add_argument("--step", choices=["search", "enrich", "score"],
                         help="Run one step only (default: all)")
+    parser.add_argument("--demo", action="store_true",
+                        help="Score 91 real ads from a saved run. No API key needed.")
     args = parser.parse_args()
+
+    if args.demo:
+        run_demo()
+        return
 
     cfg = load_config(args.config)
     setup_logging(cfg["output_dir"])

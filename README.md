@@ -5,24 +5,39 @@
 
 Find companies whose job ads describe the problem you solve, and see the exact sentence that proves it.
 
+![Signal Stack scoring a real job ad](docs/demo.gif)
+
 Most "intent data" is a score you can't check. Signal Stack gives you the quote instead. When a company writes "Memory, artifacts and event-driven agents come first" into a job ad, they've told you their roadmap, in public.
+
+## Try it in 30 seconds
+
+No API key, no credits:
+
+```bash
+git clone https://github.com/alfielambert/signal-stack
+cd signal-stack
+pip install -r requirements.txt
+python signal_stack.py --demo
+```
+
+The demo scores 91 real UK job ads for AI platform roles, pulled in November 2026 for a company that sells a knowledge layer for AI agents. Company names are replaced with their industry and each ad is cut down to the text around its signal phrases, so the demo doesn't republish ads or a prospect list. It produces the same 24 companies as the real run. `scripts/make_demo_data.py` shows exactly how it was built.
 
 ## What a result looks like
 
-This comes from a real ad pulled while building the tool, searching UK AI platform roles for a company that sells a knowledge layer for AI agents:
+From the demo ([full example report](examples/report.md)):
 
-> **1. 9fin (score 8)**
+> **2. Financial Services C (score 9)**
 > 649 staff · Financial Services · newest ad 1 day ago
 >
-> - **agent_platform** ("one home for every agent"): You'll design the core platform behind Generative AI, Agentic AI and ML at 9fin: one home for every agent...
-> - **memory_and_context** ("memory"): A real roadmap. Memory, artifacts and event-driven agents come first.
-> - **governance** ("governance"): Set standards for testing, governance, Responsible AI and operations...
+> - **agent_platform** ("one home for every agent"): You'll design the core platform behind Generative AI, Agentic AI and ML at Financial Services C: one home for every agent, delivering "AI as a service" to a dozen or more teams...
+> - **memory_and_context** ("knowledge graphs"): ...Vector databases and semantic retrieval, knowledge graphs or document understanding systems...
+> - **governance** ("governance"): ...Set standards for testing, governance, Responsible AI and operations...
 
-Every rank comes with its evidence and a link to the ad, so you can check it in ten seconds and open your email with something they actually said.
+On a real run every rank also links to the ad, so you can check it in ten seconds and open your email with something they actually said.
 
 ## How it works
 
-1. **Search.** Runs your job searches on LinkedIn through the [Lix API](https://lix-it.com).
+1. **Search.** Runs your job searches on LinkedIn through the [Lix API](https://lix-it.com/?utm_source=github&utm_medium=readme&utm_campaign=signal-stack).
 2. **Enrich.** Pulls the full ad and the company's industry and headcount for each job.
 3. **Filter.** Drops recruitment agencies, companies under your size floor and ads with no description.
 4. **Match.** Checks each ad against your signal themes. Each theme has strong phrases (specific, like "one home for every agent") and weak ones (broad, like "agentic"). Phrases match as whole words, so "RAG" won't fire on "storage".
@@ -30,12 +45,11 @@ Every rank comes with its evidence and a link to the ad, so you can check it in 
 
 Scoring is plain rules, not a model. You can explain every rank, and the output doesn't change between runs.
 
-## Setup
+## Run it on your own market
+
+You need a [Lix API](https://lix-it.com/?utm_source=github&utm_medium=readme&utm_campaign=signal-stack) key.
 
 ```bash
-git clone https://github.com/alfielambert/signal-stack
-cd signal-stack
-pip install -r requirements.txt
 cp config.example.json config.json
 export LIX_API_KEY=your_key
 ```
@@ -70,12 +84,12 @@ One API call per search page and one per ad enriched. `max_ads_per_company` (def
 ## What broke while building it
 
 - **Recruiters were half the results.** A search for "AI platform engineer" in the UK came back roughly half agencies. They're filtered on LinkedIn's industry field, not on name lists.
-- **Headcounts lie.** Tradeweb comes back with `staffCount: 1` next to a range of 1,001 to 5,000. The tool never reports less than the bottom of the range.
+- **Headcounts lie.** One trading platform came back with `staffCount: 1` next to a range of 1,001 to 5,000. The tool never reports less than the bottom of the range.
 - **Keyword search is loose.** An earlier version trusted LinkedIn's job search and matched "Luxury Showroom Sales Consultant" for "AI agents". Every ad's full description is now checked against your phrases before it counts.
 - **Page 2 was page 1 again.** In the first real run every search's second page returned the same 25 jobs, wasting a call each. Paging has to go in the LinkedIn URL. The search now also stops as soon as a page brings nothing new.
 - **One buzzword isn't a signal.** A recruiter's contract ad ranked because it mentioned "release governance". Companies now need at least two themes (`min_themes`).
 - **Everything scored 8.** With one point per theme, 13 of 24 companies tied on the first full run, because "memory" counted the same as "one home for every agent". Phrases are now split into strong and weak.
-- **LinkedIn glues bullet points together.** 9fin's ad reads "semantic retrievalKnowledge graphsBuilding", so a plain word-boundary match missed "knowledge graphs". A lowercase letter running into a capital now counts as a boundary.
+- **LinkedIn glues bullet points together.** One fintech's ad reads "semantic retrievalKnowledge graphsBuilding", so a plain word-boundary match missed "knowledge graphs". A lowercase letter running into a capital now counts as a boundary.
 - **Running out of credits used to leave holes.** A 401, 402 or 403 now stops the run straight away, with progress saved, instead of carrying on with gaps in the data.
 
 ## Tests
