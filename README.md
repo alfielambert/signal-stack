@@ -25,8 +25,8 @@ Every rank comes with its evidence and a link to the ad, so you can check it in 
 1. **Search.** Runs your job searches on LinkedIn through the [Lix API](https://lix-it.com).
 2. **Enrich.** Pulls the full ad and the company's industry and headcount for each job.
 3. **Filter.** Drops recruitment agencies, companies under your size floor and ads with no description.
-4. **Match.** Checks each ad against your signal themes. Phrases match as whole words, so "RAG" won't fire on "storage".
-5. **Rank.** Drops companies that hit fewer than `min_themes` themes, then scores the rest: 2 points per distinct theme, 1 per matching ad, 1 if an ad is under two weeks old. Several themes in one ad beat the same buzzword repeated across many.
+4. **Match.** Checks each ad against your signal themes. Each theme has strong phrases (specific, like "one home for every agent") and weak ones (broad, like "agentic"). Phrases match as whole words, so "RAG" won't fire on "storage".
+5. **Rank.** Drops companies that hit fewer than `min_themes` themes, then scores the rest: 3 points for a strong phrase per theme, 1 for a weak one, plus 1 per matching ad and 1 if an ad is under two weeks old. A specific phrase beats a buzzword repeated across many ads.
 
 Scoring is plain rules, not a model. You can explain every rank, and the output doesn't change between runs.
 
@@ -43,7 +43,7 @@ export LIX_API_KEY=your_key
 Edit `config.json`:
 
 - `searches`: the job searches to run
-- `signals`: your themes, each a list of phrases. Put the most specific phrase first, because the first match is the one quoted.
+- `signals`: your themes, each with `strong` and `weak` phrase lists. The strongest match is the one quoted.
 - `exclude_industries`: drops recruiters by default
 - `min_staff`, `days_back`, `recent_days`: your filters
 - `max_requests`: a hard cap on API calls per run
@@ -74,6 +74,8 @@ One API call per search page and one per ad enriched. `max_ads_per_company` (def
 - **Keyword search is loose.** An earlier version trusted LinkedIn's job search and matched "Luxury Showroom Sales Consultant" for "AI agents". Every ad's full description is now checked against your phrases before it counts.
 - **Page 2 was page 1 again.** In the first real run every search's second page returned the same 25 jobs, wasting a call each. Paging has to go in the LinkedIn URL. The search now also stops as soon as a page brings nothing new.
 - **One buzzword isn't a signal.** A recruiter's contract ad ranked because it mentioned "release governance". Companies now need at least two themes (`min_themes`).
+- **Everything scored 8.** With one point per theme, 13 of 24 companies tied on the first full run, because "memory" counted the same as "one home for every agent". Phrases are now split into strong and weak.
+- **LinkedIn glues bullet points together.** 9fin's ad reads "semantic retrievalKnowledge graphsBuilding", so a plain word-boundary match missed "knowledge graphs". A lowercase letter running into a capital now counts as a boundary.
 - **Running out of credits used to leave holes.** A 401, 402 or 403 now stops the run straight away, with progress saved, instead of carrying on with gaps in the data.
 
 ## Tests

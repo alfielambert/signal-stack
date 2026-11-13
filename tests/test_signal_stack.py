@@ -58,24 +58,41 @@ def test_evidence_quotes_the_ad(cfg, jobs):
     ranked, _ = ss.score_companies(cfg, jobs, TODAY)
     ninefin = next(c for c in ranked if c["company"] == "9fin")
     assert ninefin["themes"]["agent_platform"]["phrase"] == "one home for every agent"
-    assert "Memory, artifacts and event-driven agents" in ninefin["themes"]["memory_and_context"]["evidence"]
+    assert "event-driven agents" in ninefin["themes"]["agent_platform"]["evidence"]
 
 
-def test_ranking_counts_independent_themes(cfg, jobs):
+def test_ranking_weights_specific_phrases(cfg, jobs):
     ranked, _ = ss.score_companies(cfg, jobs, TODAY)
     assert [c["company"] for c in ranked] == ["9fin", "Tradeweb"]
     ninefin, tradeweb = ranked
-    # 9fin hits all three themes: 3x2 + 1 ad + 1 for a recent ad
-    assert set(ninefin["themes"]) == {"agent_platform", "memory_and_context", "governance"}
-    assert ninefin["score"] == 8
+    # 9fin: strong agent platform (3) + strong knowledge graphs (3) + weak governance (1)
+    # + 1 ad + 1 for a recent ad
+    assert {t: h["phrase"] for t, h in ninefin["themes"].items()} == {
+        "agent_platform": "one home for every agent",
+        "memory_and_context": "knowledge graphs",
+        "governance": "governance",
+    }
+    assert ninefin["score"] == 9
     # Tradeweb talks about agents but never in agent-platform terms
     assert set(tradeweb["themes"]) == {"memory_and_context", "governance"}
+    assert tradeweb["themes"]["governance"]["phrase"] == "auditable"
     assert tradeweb["score"] == 6
     assert ninefin["newest_ad_days"] == 1
 
 
+def test_strongest_evidence_wins_across_ads(cfg, jobs):
+    weak = dict(jobs[0], job_id="1", description="We build agentic tools with RAG and governance.")
+    ranked, _ = ss.score_companies(cfg, [weak, jobs[0]], TODAY)
+    assert ranked[0]["themes"]["agent_platform"]["phrase"] == "one home for every agent"
+
+
+def test_old_list_format_fails_fast():
+    with pytest.raises(SystemExit):
+        ss.compile_signals({"memory_and_context": ["RAG"]})
+
+
 def test_phrases_match_whole_words_only():
-    compiled = ss.compile_signals({"memory_and_context": ["RAG"]})
+    compiled = ss.compile_signals({"memory_and_context": {"weak": ["RAG"]}})
     assert ss.match_signals("Experience with storage and leverage", compiled) == {}
     assert "memory_and_context" in ss.match_signals("Build RAG pipelines", compiled)
 
@@ -170,3 +187,11 @@ def test_search_pages_through_the_linkedin_url(cfg):
     assert "&start=" not in urls[0]
     assert urls[1].endswith("&start=3")
     assert len(urls) == 2  # page 2 had nothing new, so paging stopped
+
+
+def test_matches_survive_joined_bullet_points():
+    # Real 9fin ad text: LinkedIn drops the space between bullet points
+    compiled = ss.compile_signals({"memory_and_context": {"strong": ["knowledge graphs"], "weak": ["RAG"]}})
+    hits = ss.match_signals("Vector databases and semantic retrievalKnowledge graphsBuilding", compiled)
+    assert hits["memory_and_context"]["phrase"] == "knowledge graphs"
+    assert ss.match_signals("storage and leverage, RAGs aside", compiled) == {}

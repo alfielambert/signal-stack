@@ -234,11 +234,30 @@ def run_enrich(cfg: dict, client: LixClient, jobs: list[dict]) -> list[dict]:
 # Step 3: score
 # ─────────────────────────────────────────────
 
-def compile_signals(signals: dict[str, list[str]]) -> dict[str, list[tuple[str, re.Pattern]]]:
-    return {
-        theme: [(p, re.compile(rf"\b{re.escape(p)}\b", re.IGNORECASE)) for p in phrases]
-        for theme, phrases in signals.items()
-    }
+STRONG_WEIGHT, WEAK_WEIGHT = 3, 1
+
+
+def phrase_pattern(phrase: str) -> re.Pattern:
+    """Whole-word, case-insensitive match that also survives LinkedIn's joined
+    bullet points ("semantic retrievalKnowledge graphsBuilding ...").
+    A lowercase letter running into a capital counts as a word boundary."""
+    start = r"(?:(?<![A-Za-z0-9])|(?<=[a-z])(?=[A-Z]))"
+    end = r"(?![a-z0-9])"
+    return re.compile(rf"{start}(?i:{re.escape(phrase)}){end}")
+
+
+def compile_signals(signals: dict) -> dict[str, list[tuple[str, re.Pattern, int]]]:
+    """Theme -> phrases, strong first. Each theme is {"strong": [...], "weak": [...]}."""
+    compiled = {}
+    for theme, tiers in signals.items():
+        if not isinstance(tiers, dict) or not (tiers.get("strong") or tiers.get("weak")):
+            sys.exit(f'Signal theme "{theme}" needs "strong" and/or "weak" phrase lists.')
+        compiled[theme] = [
+            (p, phrase_pattern(p), weight)
+            for tier, weight in (("strong", STRONG_WEIGHT), ("weak", WEAK_WEIGHT))
+            for p in tiers.get(tier, [])
+        ]
+    return compiled
 
 
 def evidence_snippet(text: str, start: int, end: int) -> str:
@@ -248,13 +267,17 @@ def evidence_snippet(text: str, start: int, end: int) -> str:
 
 
 def match_signals(text: str, compiled: dict) -> dict[str, dict]:
-    """Return the first match per theme: {theme: {phrase, evidence}}."""
+    """Return the strongest match per theme: {theme: {phrase, weight, evidence}}."""
     hits = {}
     for theme, patterns in compiled.items():
-        for phrase, pattern in patterns:
+        for phrase, pattern, weight in patterns:
             m = pattern.search(text)
             if m:
-                hits[theme] = {"phrase": phrase, "evidence": evidence_snippet(text, m.start(), m.end())}
+                hits[theme] = {
+                    "phrase": phrase,
+                    "weight": weight,
+                    "evidence": evidence_snippet(text, m.start(), m.end()),
+                }
                 break
     return hits
 
@@ -311,7 +334,10 @@ def score_companies(cfg: dict, jobs: list[dict], today: datetime) -> tuple[list[
             "days_old": age,
         })
         for theme, hit in hits.items():
-            c["themes"].setdefault(theme, {**hit, "ad": job["title"]})
+            # Keep the strongest evidence for each theme across all the company's ads
+            current = c["themes"].get(theme)
+            if not current or hit["weight"] > current["weight"]:
+                c["themes"][theme] = {**hit, "ad": job["title"]}
 
     # One theme on its own is usually a buzzword ("release governance" from a
     # recruiter ad), so a company needs several to count.
@@ -323,10 +349,10 @@ def score_companies(cfg: dict, jobs: list[dict], today: datetime) -> tuple[list[
             continue
         ages = [a["days_old"] for a in c["ads"] if a["days_old"] is not None]
         newest = min(ages) if ages else None
-        # Independent themes count most: one ad mentioning memory, governance and
-        # agents is stronger than three ads that only say "agentic".
+        # Specific phrases count most: "one home for every agent" (3) beats a
+        # passing "agentic" (1), and a spread of themes beats repeated buzzwords.
         c["score"] = (
-            2 * len(c["themes"])
+            sum(t["weight"] for t in c["themes"].values())
             + len(c["ads"])
             + (1 if newest is not None and newest <= recent_days else 0)
         )

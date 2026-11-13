@@ -4,7 +4,7 @@
     "AI platform engineer",
     "agentic AI engineer",
     "LLM platform engineer",
-    "head of AI platform"
+    "AI enablement lead"
   ],
   "location": "United Kingdom",
   "days_back": 30,
@@ -12,11 +12,55 @@
   "max_ads_per_company": 3,
   "max_requests": 300,
   "signals": {
-    "agent_platform": ["one home for every agent", "agent platform", "agent orchestration", "agent runtime", "multi-agent", "agentic"],
-    "memory_and_context": ["agent memory", "memory", "context engineering", "knowledge graph", "knowledge graphs", "knowledge base", "RAG", "retrieval-augmented generation"],
-    "governance": ["AI governance", "governance", "auditable", "audit logging", "responsible AI", "data residency", "on-premise", "self-hosted"]
+    "agent_platform": {
+      "strong": [
+        "one home for every agent",
+        "agent platform",
+        "agentic platform",
+        "agent orchestration",
+        "agent runtime",
+        "agent registry"
+      ],
+      "weak": [
+        "multi-agent",
+        "agentic"
+      ]
+    },
+    "memory_and_context": {
+      "strong": [
+        "agent memory",
+        "context engineering",
+        "knowledge graph",
+        "knowledge graphs",
+        "knowledge layer",
+        "institutional knowledge"
+      ],
+      "weak": [
+        "memory",
+        "knowledge base",
+        "RAG",
+        "retrieval-augmented generation"
+      ]
+    },
+    "governance": {
+      "strong": [
+        "AI governance",
+        "auditable",
+        "audit logging",
+        "data residency",
+        "on-premise",
+        "self-hosted"
+      ],
+      "weak": [
+        "governance",
+        "responsible AI"
+      ]
+    }
   },
-  "exclude_industries": ["Staffing and Recruiting", "Human Resources Services"],
+  "exclude_industries": [
+    "Staffing and Recruiting",
+    "Human Resources Services"
+  ],
   "min_staff": 50,
   "min_themes": 2,
   "recent_days": 14,
