@@ -61,6 +61,7 @@ Edit `config.json`:
 - `exclude_industries`: drops recruiters by default
 - `min_staff`, `days_back`, `recent_days`: your filters
 - `max_requests`: a hard cap on API calls per run
+- `openlore.dir`: an OpenLore knowledge folder to remember runs in (see below)
 
 ## Run
 
@@ -76,6 +77,28 @@ The output goes to `output/`:
 - `jobs_enriched.jsonl`: the raw enriched ads, so you can re-score for free
 
 Enrichment saves after every ad. If a run stops, run it again and it picks up where it left off.
+
+## Remember every run with OpenLore
+
+On its own, each run starts from nothing. It can't tell you which companies are new this week, whose score went up, or who you've already emailed.
+
+Point it at an [OpenLore](https://github.com/aakarim/OpenLore) knowledge folder and it can:
+
+```bash
+python signal_stack.py --openlore ~/knowledge/docs/signal-stack
+python signal_stack.py --demo --openlore /tmp/signal-stack-kb   # try it with the demo
+```
+
+Each run writes one Markdown page per company (the quotes, every ad seen, the score over time) plus a page for the run itself. The next run reads those pages first, so the report marks each company as new or "seen since", and shows where a score has moved.
+
+OpenLore then serves the folder to every agent on your team: Claude Code, Codex, Cursor or a scheduled job. They all read the same pages, so whoever drafts the outreach works from the same evidence. An agent can answer "which companies started mentioning governance this month that we haven't contacted?" with `grep` and `lore meta`, without anyone exporting a spreadsheet.
+
+Two things on each page belong to your team and are never overwritten:
+
+- **`outreach:`** in the frontmatter: new, contacted, replied, meeting, customer or not-a-fit. Once a company is at contacted or beyond, it leaves the ranking and moves to an "Already in play" list, so the weekly run only surfaces companies you haven't spoken to. Change the list with `openlore.in_play` in the config.
+- **Anything under `## Notes`**: call notes, who to talk to, what they said.
+
+The folder is an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundle, so it passes `lore validate`. It works with a local folder that OpenLore serves, or with a remote server's docs mounted over SSHFS.
 
 ## Cost
 

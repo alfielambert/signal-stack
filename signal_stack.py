@@ -24,6 +24,8 @@ from urllib.parse import quote
 
 import requests
 
+import openlore_bundle
+
 log = logging.getLogger("signal_stack")
 
 API_BASE = "https://api.lix-it.com"
@@ -319,6 +321,7 @@ def score_companies(cfg: dict, jobs: list[dict], today: datetime) -> tuple[list[
 
         key = job["company_id"] or job["company"].lower()
         c = companies.setdefault(key, {
+            "key": key,
             "company": job["company"],
             "company_url": job["company_url"],
             "industries": ", ".join(job["industries"]),
@@ -369,7 +372,7 @@ def score_companies(cfg: dict, jobs: list[dict], today: datetime) -> tuple[list[
 # ─────────────────────────────────────────────
 
 CSV_FIELDS = [
-    "rank", "company", "score", "themes", "ad_count", "newest_ad_days",
+    "rank", "company", "score", "new", "outreach", "themes", "ad_count", "newest_ad_days",
     "staff_count", "industries", "company_url", "top_ad", "top_ad_url",
 ]
 
@@ -383,6 +386,8 @@ def write_csv(path: str, ranked: list[dict], themes: list[str]):
                 "rank": i,
                 "company": c["company"],
                 "score": c["score"],
+                "new": "" if c.get("is_new") is None else ("yes" if c["is_new"] else "no"),
+                "outreach": c.get("outreach", ""),
                 "themes": ", ".join(c["themes"]),
                 "ad_count": len(c["ads"]),
                 "newest_ad_days": c["newest_ad_days"],
@@ -397,11 +402,23 @@ def write_csv(path: str, ranked: list[dict], themes: list[str]):
             w.writerow(row)
 
 
-def render_report(ranked: list[dict], dropped: dict, total_jobs: int, limit: int = 25) -> str:
+def memory_label(c: dict) -> str:
+    """What OpenLore remembers about a company, for the report heading."""
+    if c.get("is_new") is None:
+        return ""
+    if c["is_new"]:
+        return " · new"
+    was = c.get("previous_score")
+    return f" · seen since {c['first_seen']}" + (f", was {was}" if was is not None and was != c["score"] else "")
+
+
+def render_report(ranked: list[dict], dropped: dict, total_jobs: int, limit: int = 25,
+                  playing: list[dict] | None = None) -> str:
+    total = len(ranked) + len(playing or [])
     lines = [
         "# Signal Stack report",
         "",
-        f"{total_jobs} job ads checked, {len(ranked)} companies with signals.",
+        f"{total_jobs} job ads checked, {total} companies with signals.",
         "",
         "Dropped: " + (", ".join(f"{n} {r}" for r, n in sorted(dropped.items())) or "none"),
         "",
@@ -410,7 +427,7 @@ def render_report(ranked: list[dict], dropped: dict, total_jobs: int, limit: int
         days = c["newest_ad_days"]
         age = "date unknown" if days is None else f"{days} day{'' if days == 1 else 's'} ago"
         lines += [
-            f"## {i}. {c['company']} (score {c['score']})",
+            f"## {i}. {c['company']} (score {c['score']}{memory_label(c)})",
             "",
             f"{c['staff_count'] or '?'} staff · {c['industries'] or 'industry unknown'} · newest ad {age}",
             "",
@@ -421,18 +438,36 @@ def render_report(ranked: list[dict], dropped: dict, total_jobs: int, limit: int
         for ad in c["ads"]:
             lines.append(f"- [{ad['title']}]({ad['url']})" if ad["url"] else f"- {ad['title']}")
         lines.append("")
+    if playing:
+        lines += ["## Already in play", "", "Outreach has started with these, so they are left out of the ranking.", ""]
+        lines += [f"- {c['company']} ({c['outreach']}, score {c['score']})" for c in playing]
+        lines.append("")
     return "\n".join(lines)
 
 
 def run_score(cfg: dict, jobs: list[dict], today: datetime | None = None) -> list[dict]:
     today = today or datetime.now(timezone.utc)
     ranked, dropped = score_companies(cfg, jobs, today)
+
+    # With OpenLore, earlier runs are the memory: what is new, what moved,
+    # and who the team is already talking to.
+    lore = cfg.get("openlore") or {}
+    known, playing = None, []
+    if lore.get("dir"):
+        known = openlore_bundle.load(lore["dir"])
+        playing = openlore_bundle.annotate(ranked, known, lore.get("in_play", openlore_bundle.DEFAULT_IN_PLAY))
+
     out = cfg["output_dir"]
     write_csv(os.path.join(out, "companies.csv"), ranked, list(cfg["signals"]))
     with open(os.path.join(out, "report.md"), "w") as f:
-        f.write(render_report(ranked, dropped, len(jobs)))
-    log.info(f"Scored {len(jobs)} ads: {len(ranked)} companies. Dropped: {dropped}")
+        f.write(render_report(ranked, dropped, len(jobs), playing=playing))
+    log.info(f"Scored {len(jobs)} ads: {len(ranked) + len(playing)} companies. Dropped: {dropped}")
     log.info(f"Wrote {out}/companies.csv and {out}/report.md")
+
+    if known is not None:
+        openlore_bundle.write(lore["dir"], ranked, playing, known, dropped, len(jobs), today)
+        new = sum(1 for c in ranked if c["is_new"])
+        log.info(f"OpenLore: {new} new, {len(playing)} already in play. Updated {lore['dir']}")
     return ranked
 
 
@@ -460,10 +495,12 @@ def print_top(ranked: list[dict], n: int = 5):
         print()
 
 
-def run_demo():
+def run_demo(openlore_dir: str | None = None):
     """Score a real run's ads (anonymised and trimmed) with no API key."""
     cfg = load_config(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.example.json"))
     cfg["output_dir"] = os.path.join("output", "demo")
+    if openlore_dir:
+        cfg["openlore"] = {"dir": openlore_dir}
     os.makedirs(cfg["output_dir"], exist_ok=True)
     setup_logging(cfg["output_dir"])
     ranked = run_score(cfg, load_jsonl(DEMO_DATA), today=DEMO_DATE)
@@ -478,13 +515,17 @@ def main():
                         help="Run one step only (default: all)")
     parser.add_argument("--demo", action="store_true",
                         help="Score 91 real ads from a saved run. No API key needed.")
+    parser.add_argument("--openlore", metavar="DIR",
+                        help="Read and update an OpenLore knowledge folder (overrides openlore.dir in the config)")
     args = parser.parse_args()
 
     if args.demo:
-        run_demo()
+        run_demo(args.openlore)
         return
 
     cfg = load_config(args.config)
+    if args.openlore:
+        cfg["openlore"] = {**(cfg.get("openlore") or {}), "dir": args.openlore}
     setup_logging(cfg["output_dir"])
     out = cfg["output_dir"]
 
