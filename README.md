@@ -9,6 +9,8 @@ Find companies whose job ads describe the problem you solve, and see the exact s
 
 Most "intent data" is a score you can't check. Signal Stack gives you the quote instead. When a company writes "Memory, artifacts and event-driven agents come first" into a job ad, they've told you their roadmap, in public.
 
+Run it on your own, or [share it with your team through OpenLore](#share-it-with-your-team-through-openlore) so everyone can see which companies are new, who owns each account and who has already been contacted.
+
 ## Try it in 30 seconds
 
 No API key, no credits:
@@ -61,7 +63,7 @@ Edit `config.json`:
 - `exclude_industries`: drops recruiters by default
 - `min_staff`, `days_back`, `recent_days`: your filters
 - `max_requests`: a hard cap on API calls per run
-- `openlore.dir`: an OpenLore knowledge folder to remember runs in (see below)
+- `openlore.dir`: an OpenLore knowledge folder your team shares (see below)
 
 ## Run
 
@@ -78,27 +80,52 @@ The output goes to `output/`:
 
 Enrichment saves after every ad. If a run stops, run it again and it picks up where it left off.
 
-## Remember every run with OpenLore
+## Share it with your team through OpenLore
 
-On its own, each run starts from nothing. It can't tell you which companies are new this week, whose score went up, or who you've already emailed.
+On its own, each run starts from nothing and lives on one laptop. It can't tell you which companies are new this week, whose score went up, or who on your team is already talking to them.
 
-Point it at an [OpenLore](https://github.com/aakarim/OpenLore) knowledge folder and it can:
+Point it at an [OpenLore](https://github.com/aakarim/OpenLore) knowledge folder and every run becomes shared team memory:
 
 ```bash
-python signal_stack.py --openlore ~/knowledge/docs/signal-stack
+python signal_stack.py --openlore ~/knowledge/docs/gtm/signal-stack
 python signal_stack.py --demo --openlore /tmp/signal-stack-kb   # try it with the demo
 ```
 
-Each run writes one Markdown page per company (the quotes, every ad seen, the score over time) plus a page for the run itself. The next run reads those pages first, so the report marks each company as new or "seen since", and shows where a score has moved.
+OpenLore serves the folder to everyone on the team and to their agents: Claude Code, Codex, Cursor or a scheduled job. They all work from the same pages.
 
-OpenLore then serves the folder to every agent on your team: Claude Code, Codex, Cursor or a scheduled job. They all read the same pages, so whoever drafts the outreach works from the same evidence. An agent can answer "which companies started mentioning governance this month that we haven't contacted?" with `grep` and `lore meta`, without anyone exporting a spreadsheet.
+### What a week looks like
 
-Two things on each page belong to your team and are never overwritten:
+- **Monday:** the run finds 24 companies and writes a page for each, with the quotes, every ad seen and the score.
+- **Monday afternoon:** Sam claims three accounts by setting `owner: sam`. You claim two. The run page lists the rest as unclaimed, so nobody emails the same company twice.
+- **Tuesday:** you email your two and set `outreach: contacted`. Claude Code can draft those emails from the same evidence pages.
+- **Wednesday:** one replies. You set `outreach: replied` and add a dated line under `## Notes`.
+- **Next Monday:** the run skips everyone already in play, flags the new companies, and shows each owner what moved on their accounts.
 
-- **`outreach:`** in the frontmatter: new, contacted, replied, meeting, customer or not-a-fit. Once a company is at contacted or beyond, it leaves the ranking and moves to an "Already in play" list, so the weekly run only surfaces companies you haven't spoken to. Change the list with `openlore.in_play` in the config.
-- **Anything under `## Notes`**: call notes, who to talk to, what they said.
+Meanwhile any agent on the team can answer "which unclaimed companies mention governance?" from the folder, with `grep` or `lore meta`, without anyone exporting a spreadsheet.
 
-The folder is an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundle, so it passes `lore validate`. It works with a local folder that OpenLore serves, or with a remote server's docs mounted over SSHFS.
+### What belongs to the team
+
+Signal Stack rewrites each company page on every run, but never touches three things:
+
+| Field | What it's for |
+|---|---|
+| `owner:` | Who is working the account. Each run page groups companies by owner and lists the unclaimed ones. |
+| `outreach:` | new, contacted, replied, meeting, customer or not-a-fit. At contacted or beyond, a company leaves the ranking and moves to "Already in play". Change the list with `openlore.in_play`. |
+| `## Notes` | Call notes, who to talk to, what they said. Kept word for word. |
+
+People and agents can edit these while a run is going. Signal Stack re-reads each page just before writing it, builds on what's there at that moment, and only saves if nothing changed in between. If someone saves at the same instant, it reads again and retries. The log tells you whose edits it kept.
+
+### What's in the folder
+
+```
+index.md               every company, best score first, with owner and outreach
+log.md                 one line per run, newest first
+guide.md               how agents should read and update the folder
+companies/<name>.md    evidence, every ad seen, score history, team fields
+runs/<date>.md         new companies, rising scores, already in play, by owner, unclaimed
+```
+
+The folder is an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundle and passes OpenLore's own validator. Signal Stack writes to a local folder, so use the folder your OpenLore server serves, or mount a remote server's folder over SSHFS. Writing straight to the server over SSH, with Signal Stack as its own identity and every change in `lore history`, is next.
 
 ## Cost
 

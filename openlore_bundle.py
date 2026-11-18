@@ -12,21 +12,32 @@ Knowledge Format bundle, so `lore validate` passes on it:
   runs/<date>.md         what changed in each run
 
 Signal Stack owns the frontmatter and the generated sections of each company
-page. Two things belong to people and agents, and are kept across runs:
+page. Three things belong to the team, and are kept across runs:
 
   outreach:   in the frontmatter (new, contacted, replied, meeting, customer, not-a-fit)
+  owner:      in the frontmatter, whoever is working the account
   ## Notes    everything under that heading
+
+Teammates and their agents edit pages while runs happen, so each company page
+is re-read just before it is written, and the team's fields come from that
+fresh copy. If the page changes again in between, the write is retried.
 """
 
 import os
 import re
 from datetime import datetime
 
+import logging
+
 import yaml
+
+log = logging.getLogger("signal_stack")
 
 OKF_VERSION = "0.2"
 NOTES_HEADING = "## Notes"
 DEFAULT_IN_PLAY = ["contacted", "replied", "meeting", "customer", "not-a-fit"]
+TEAM_FIELDS = ("outreach", "owner")
+WRITE_ATTEMPTS = 3
 FM_RE = re.compile(r"\A---\n(.*?)\n---\n?(.*)\Z", re.DOTALL)
 
 
@@ -61,6 +72,18 @@ def notes_section(body: str) -> str:
     return body[i:].rstrip() + "\n" if i >= 0 else f"{NOTES_HEADING}\n\n"
 
 
+def read_page(path: str) -> tuple[dict | None, str | None]:
+    """A company page as {"meta", "notes", "path"}, plus its raw text. (None, None) if absent."""
+    if not os.path.exists(path):
+        return None, None
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    meta, body = split_frontmatter(text)
+    if not meta.get("company_key"):
+        raise ValueError(f"{path} has no company_key in its frontmatter")
+    return {"meta": meta, "notes": notes_section(body), "path": path}, text
+
+
 def load(bundle_dir: str) -> dict[str, dict]:
     """Existing company pages, keyed by company key: {key: {"meta", "notes", "path"}}."""
     known = {}
@@ -68,15 +91,9 @@ def load(bundle_dir: str) -> dict[str, dict]:
     if not os.path.isdir(folder):
         return known
     for name in sorted(os.listdir(folder)):
-        if not name.endswith(".md"):
-            continue
-        path = os.path.join(folder, name)
-        with open(path, encoding="utf-8") as f:
-            meta, body = split_frontmatter(f.read())
-        key = meta.get("company_key")
-        if not key:
-            raise ValueError(f"{path} has no company_key in its frontmatter")
-        known[key] = {"meta": meta, "notes": notes_section(body), "path": path}
+        if name.endswith(".md"):
+            page, _ = read_page(os.path.join(folder, name))
+            known[page["meta"]["company_key"]] = page
     return known
 
 
@@ -88,6 +105,7 @@ def annotate(ranked: list[dict], known: dict[str, dict], in_play: list[str]) -> 
     for c in ranked:
         prev = known.get(c["key"])
         c["outreach"] = prev["meta"].get("outreach", "new") if prev else "new"
+        c["owner"] = prev["meta"].get("owner", "") if prev else ""
         c["is_new"] = prev is None
         c["previous_score"] = prev["meta"].get("score") if prev else None
         c["first_seen"] = prev["meta"].get("first_seen") if prev else None
@@ -122,6 +140,7 @@ def company_page(c: dict, prev: dict | None, run_date: str, now: str) -> tuple[s
         "industries": c["industries"] or None,
         "staff_count": c["staff_count"] or None,
         "outreach": prev_meta.get("outreach", "new"),
+        "owner": prev_meta.get("owner") or None,
         "score": c["score"],
         "themes": sorted(c["themes"]),
         "first_seen": prev_meta.get("first_seen", run_date),
@@ -176,6 +195,25 @@ def run_page(run_date: str, now: str, ranked: list[dict], playing: list[dict],
     lines += [f"- {link(c)} ({c['previous_score']} to {c['score']})" for c in rising] or ["- None"]
     lines += ["", "## Already in play", ""]
     lines += [f"- {link(c)} ({c['outreach']}, score {c['score']})" for c in playing] or ["- None"]
+
+    def change(c):
+        if c["is_new"]:
+            return "new"
+        if c["previous_score"] is not None and c["score"] != c["previous_score"]:
+            return f"{c['previous_score']} to {c['score']}"
+        return f"score {c['score']}"
+
+    owners = sorted({c["owner"] for c in ranked + playing if c["owner"]})
+    lines += ["", "## By owner", ""]
+    for owner in owners:
+        theirs = [c for c in ranked + playing if c["owner"] == owner]
+        lines += [f"### {owner}", ""]
+        lines += [f"- {link(c)} ({c['outreach']}, {change(c)})" for c in theirs] + [""]
+    if not owners:
+        lines += ["- Nobody has claimed an account yet. Set `owner:` on a company page.", ""]
+    unclaimed = [c for c in ranked if not c["owner"]]
+    lines += ["## Unclaimed", "", "Nobody is working these yet. Set `owner:` on the page to claim one.", ""]
+    lines += [f"- {link(c)} ({change(c)})" for c in unclaimed] or ["- None"]
     front = yaml.safe_dump(meta, sort_keys=False, allow_unicode=True)
     return f"---\n{front}---\n\n" + "\n".join(lines) + "\n"
 
@@ -188,8 +226,9 @@ def index_page(pages: dict[str, dict], runs: list[str]) -> str:
              "## Companies", ""]
     ordered = sorted(pages.items(), key=lambda kv: (-kv[1].get("score", 0), kv[1]["title"]))
     for path, meta in ordered:
+        owner = f", owner {meta['owner']}" if meta.get("owner") else ""
         lines.append(f"- [{meta['title']}]({path}): score {meta.get('score')}, "
-                     f"outreach {meta.get('outreach')}, last seen {meta.get('last_seen')}")
+                     f"outreach {meta.get('outreach')}{owner}, last seen {meta.get('last_seen')}")
     lines += ["", "## Runs", ""]
     lines += [f"- [{r}](runs/{r}.md)" for r in sorted(runs, reverse=True)]
     return "\n".join(lines) + "\n"
@@ -216,15 +255,21 @@ and its score over time.
 
 ## Updating it
 
-Signal Stack rewrites everything on a company page except two things, which
-belong to you:
+Signal Stack rewrites everything on a company page except three things,
+which belong to the team:
 
+- `owner:` in the frontmatter: whoever is working the account. Set it before
+  you reach out, so nobody else contacts the same company. Each run page
+  groups companies by owner and lists the unclaimed ones.
 - `outreach:` in the frontmatter. Use one of: new, contacted, replied,
   meeting, customer, not-a-fit. Companies at contacted or beyond leave the
   main ranking and show under "Already in play" in the next run.
 - Anything under the `## Notes` heading: research, call notes, who to talk to.
+  Start each note with the date and your name.
 
-Do not edit the other fields by hand. The next run overwrites them.
+You can edit these while a run is going. Signal Stack re-reads each page
+just before writing it, so your change is kept. Do not edit the other fields
+by hand. The next run overwrites them.
 """
 
 
@@ -246,6 +291,37 @@ def update_log(existing: str | None, run_date: str, entry: str) -> str:
     return "\n".join(lines)
 
 
+def team_changes(before: dict | None, after: dict | None) -> str:
+    """Team fields someone changed between the start of the run and the write."""
+    if not before or not after:
+        return ""
+    changed = [f"{f} {before['meta'].get(f)} to {after['meta'].get(f)}" for f in TEAM_FIELDS
+               if before["meta"].get(f) != after["meta"].get(f)]
+    if before["notes"] != after["notes"]:
+        changed.append("notes")
+    return ", ".join(changed)
+
+
+def write_company(path: str, c: dict, run_date: str, now: str) -> dict | None:
+    """Write one company page without losing a teammate's edit.
+
+    Re-read the page, build the new version on top of what is there now, and
+    only replace it if nobody changed it in between. Returns the copy the
+    team's fields were taken from."""
+    for _ in range(WRITE_ATTEMPTS):
+        current, text = read_page(path)
+        _, new_text = company_page(c, current, run_date, now)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(new_text)
+        if read_page(path)[1] == text:
+            os.replace(tmp, path)
+            return current
+        os.remove(tmp)
+    raise RuntimeError(f"{path} kept changing while Signal Stack was writing it. Run again.")
+
+
 def _write(path: str, text: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
@@ -260,12 +336,14 @@ def write(bundle_dir: str, ranked: list[dict], playing: list[dict], known: dict[
     now = datetime.now(today.tzinfo).isoformat(timespec="seconds")
     slugs = {}
     for c in ranked + playing:
-        prev = known.get(c["key"])
-        path, text = company_page(c, prev, run_date, now)
-        if prev:
-            # Keep the file a company already has, even if its name has changed
-            path = os.path.relpath(prev["path"], bundle_dir).replace(os.sep, "/")
-        _write(os.path.join(bundle_dir, path), text)
+        start = known.get(c["key"])
+        # Keep the file a company already has, even if its name has changed
+        path = (os.path.relpath(start["path"], bundle_dir).replace(os.sep, "/") if start
+                else f"companies/{slugify(c['company'])}.md")
+        fresh = write_company(os.path.join(bundle_dir, path), c, run_date, now)
+        kept = team_changes(start, fresh)
+        if kept:
+            log.info(f"{c['company']}: kept edits made during the run ({kept})")
         slugs[c["key"]] = path
 
     _write(os.path.join(bundle_dir, "runs", f"{run_date}.md"),

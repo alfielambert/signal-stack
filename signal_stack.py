@@ -372,7 +372,7 @@ def score_companies(cfg: dict, jobs: list[dict], today: datetime) -> tuple[list[
 # ─────────────────────────────────────────────
 
 CSV_FIELDS = [
-    "rank", "company", "score", "new", "outreach", "themes", "ad_count", "newest_ad_days",
+    "rank", "company", "score", "new", "outreach", "owner", "themes", "ad_count", "newest_ad_days",
     "staff_count", "industries", "company_url", "top_ad", "top_ad_url",
 ]
 
@@ -388,6 +388,7 @@ def write_csv(path: str, ranked: list[dict], themes: list[str]):
                 "score": c["score"],
                 "new": "" if c.get("is_new") is None else ("yes" if c["is_new"] else "no"),
                 "outreach": c.get("outreach", ""),
+                "owner": c.get("owner", ""),
                 "themes": ", ".join(c["themes"]),
                 "ad_count": len(c["ads"]),
                 "newest_ad_days": c["newest_ad_days"],
@@ -406,10 +407,12 @@ def memory_label(c: dict) -> str:
     """What OpenLore remembers about a company, for the report heading."""
     if c.get("is_new") is None:
         return ""
+    owner = f" · owner {c['owner']}" if c.get("owner") else ""
     if c["is_new"]:
-        return " · new"
+        return " · new" + owner
     was = c.get("previous_score")
-    return f" · seen since {c['first_seen']}" + (f", was {was}" if was is not None and was != c["score"] else "")
+    return (f" · seen since {c['first_seen']}" + (f", was {was}" if was is not None and was != c["score"] else "")
+            + owner)
 
 
 def render_report(ranked: list[dict], dropped: dict, total_jobs: int, limit: int = 25,
