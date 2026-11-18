@@ -43,6 +43,8 @@ class OutOfCredits(Exception):
 # ─────────────────────────────────────────────
 
 def load_config(path: str) -> dict:
+    if not os.path.exists(path):
+        sys.exit(f"No config at {path}. Run: cp config.example.json {path}")
     with open(path) as f:
         cfg = json.load(f)
     cfg["api_key"] = os.environ.get("LIX_API_KEY") or cfg.get("api_key")
@@ -55,8 +57,11 @@ def load_config(path: str) -> dict:
     return cfg
 
 
+PLACEHOLDER_KEY = "YOUR_LIX_API_KEY_HERE"  # what config.example.json ships with
+
+
 def require_api_key(cfg: dict):
-    if not cfg.get("api_key"):
+    if cfg.get("api_key") in (None, "", PLACEHOLDER_KEY):
         sys.exit("No Lix API key. Set LIX_API_KEY or add api_key to your config.")
 
 

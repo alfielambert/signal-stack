@@ -204,3 +204,15 @@ def test_demo_runs_without_api_key(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Top 5 of" in out
     assert (tmp_path / "output" / "demo" / "report.md").exists()
+
+
+def test_missing_config_says_how_to_create_it(tmp_path):
+    # A new user running --step score before copying the example config should be told what to do, not shown a traceback.
+    with pytest.raises(SystemExit, match="cp config.example.json"):
+        ss.load_config(str(tmp_path / "config.json"))
+
+
+def test_placeholder_api_key_is_treated_as_missing():
+    # Copying config.example.json without setting a key must stop before any API call, not spend one on a 401.
+    with pytest.raises(SystemExit, match="No Lix API key"):
+        ss.require_api_key({"api_key": ss.PLACEHOLDER_KEY})

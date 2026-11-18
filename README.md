@@ -72,7 +72,7 @@ python signal_stack.py                 # search, enrich, score
 python signal_stack.py --step score    # re-score saved ads after editing signals, no API calls
 ```
 
-The output goes to `output/`:
+The output goes to `output/` (the demo writes to `output/demo/` instead):
 
 - `report.md`: the top 25 companies with evidence
 - `companies.csv`: every company, with one evidence column per theme
